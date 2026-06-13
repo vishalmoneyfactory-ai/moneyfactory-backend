@@ -6,6 +6,7 @@ const { computeDiscount } = require('./couponController');
 const { verifyPaymentSignature, verifyWebhookSignature } = require('../utils/razorpayVerify');
 const { grantAccess } = require('../utils/paymentAccess');
 const { serializePricing } = require('../utils/pricing');
+const { creditReferralReward, validateReferralCode } = require('../utils/referrals');
 
 function razorpay() {
   if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) throw new Error('Razorpay is not configured');
@@ -13,7 +14,10 @@ function razorpay() {
 }
 
 async function createOrder(req, res) {
-  const { courseId, isBundle, couponCode } = req.body;
+  const { courseId, isBundle, couponCode, referralCode } = req.body;
+  if (!req.user.phone || !String(req.user.phone).trim()) {
+    return res.status(400).json({ message: 'Please add your phone number before purchasing a course.', code: 'PHONE_REQUIRED' });
+  }
   const course = isBundle
     ? await Course.findOne({ isBundle: true, isActive: true })
     : await Course.findOne({ _id: courseId, isActive: true });
@@ -26,12 +30,18 @@ async function createOrder(req, res) {
     const discount = await computeDiscount({ code: couponCode, courseId: course._id, isBundle: Boolean(isBundle), basePrice: pricing.effectivePrice });
     discountAmount = discount.discountAmount;
   }
+  const referral = await validateReferralCode(referralCode, req.user._id);
   const finalAmount = Math.max(pricing.effectivePrice - discountAmount, 0);
   const rpOrder = await razorpay().orders.create({
     amount: finalAmount * 100,
     currency: 'INR',
     receipt: `mf_${Date.now()}`,
-    notes: { userId: req.user._id.toString(), courseId: course._id.toString(), isBundle: String(Boolean(isBundle)) },
+    notes: {
+      userId: req.user._id.toString(),
+      courseId: course._id.toString(),
+      isBundle: String(Boolean(isBundle)),
+      referralCode: referral?.code || '',
+    },
   });
   const order = await Order.create({
     user: req.user._id,
@@ -44,6 +54,7 @@ async function createOrder(req, res) {
     offerDiscountAmount: pricing.offerDiscount,
     couponApplied: couponCode?.toUpperCase(),
     discountAmount,
+    referralCode: referral?.code,
   });
   return res.status(201).json({ order, orderId: rpOrder.id, amount: finalAmount, currency: 'INR', keyId: process.env.RAZORPAY_KEY_ID });
 }
@@ -63,7 +74,9 @@ async function verifyPayment(req, res) {
     order.razorpaySignature = razorpaySignature;
     await order.save();
     await grantAccess(order);
+    const reward = await creditReferralReward(order);
     if (order.couponApplied) await Coupon.findOneAndUpdate({ code: order.couponApplied }, { $inc: { usedCount: 1 } });
+    return res.json({ message: 'Payment verified', order, referralReward: reward });
   }
   return res.json({ message: 'Payment verified', order });
 }
@@ -81,6 +94,7 @@ async function webhook(req, res) {
       order.razorpayPaymentId = payment.id;
       await order.save();
       await grantAccess(order);
+      await creditReferralReward(order);
       if (order.couponApplied) await Coupon.findOneAndUpdate({ code: order.couponApplied }, { $inc: { usedCount: 1 } });
     }
   }

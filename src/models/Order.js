@@ -15,6 +15,9 @@ const orderSchema = new mongoose.Schema({
   status: { type: String, enum: ['pending', 'success', 'failed'], default: 'pending', index: true },
   couponApplied: String,
   discountAmount: { type: Number, default: 0 },
+  referralCode: { type: String, uppercase: true, trim: true },
+  purchaseDate: { type: Date },
+  expiryDate: { type: Date },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Order', orderSchema);

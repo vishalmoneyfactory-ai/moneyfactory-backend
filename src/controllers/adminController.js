@@ -7,7 +7,11 @@ const WatchProgress = require('../models/WatchProgress');
 const NotificationLog = require('../models/NotificationLog');
 const AppSetting = require('../models/AppSetting');
 const Video = require('../models/Video');
+const ReferralReward = require('../models/ReferralReward');
+const ReferralPayout = require('../models/ReferralPayout');
+const WalletAudit = require('../models/WalletAudit');
 const { applyPricing } = require('../utils/pricing');
+const { expiryFor } = require('../utils/paymentAccess');
 
 function bunnyThumbnail(video) {
   if (!video?.bunnyVideoId || !video?.bunnyLibraryId) return '';
@@ -86,7 +90,10 @@ async function students(req, res) {
   if (status === 'active') filter.isActive = true;
   if (status === 'banned') filter.isActive = false;
   if (q) filter.$or = [{ name: new RegExp(q, 'i') }, { email: new RegExp(q, 'i') }];
-  const rows = await User.find(filter).populate('purchasedCourses', 'title').sort({ createdAt: -1 });
+  const rows = await User.find(filter)
+    .populate('purchasedCourses', 'title')
+    .populate('purchasedCourseDetails.course', 'title')
+    .sort({ createdAt: -1 });
   const totals = await Order.aggregate([{ $match: { status: 'success' } }, { $group: { _id: '$user', totalSpent: { $sum: '$amount' } } }]);
   const totalMap = new Map(totals.map((t) => [t._id.toString(), t.totalSpent]));
   return res.json({ students: rows.map((student) => ({ ...student.toObject(), totalSpent: totalMap.get(student._id.toString()) || 0 })) });
@@ -111,9 +118,21 @@ async function updateAccess(req, res) {
   if (!user) return res.status(404).json({ message: 'Student not found' });
   if (typeof hasBundle === 'boolean') user.hasBundle = hasBundle;
   if (courseId) {
+    const course = await Course.findById(courseId);
+    if (!course) return res.status(404).json({ message: 'Course not found' });
     const exists = user.purchasedCourses.some((id) => id.toString() === courseId);
     if (hasAccess && !exists) user.purchasedCourses.push(courseId);
+    if (hasAccess) {
+      const purchaseDate = new Date();
+      user.purchasedCourseDetails.push({
+        course: courseId,
+        purchaseDate,
+        expiryDate: expiryFor(course, purchaseDate),
+        isBundlePurchase: false,
+      });
+    }
     if (!hasAccess) user.purchasedCourses = user.purchasedCourses.filter((id) => id.toString() !== courseId);
+    if (!hasAccess) user.purchasedCourseDetails = user.purchasedCourseDetails.filter((entry) => entry.course.toString() !== courseId);
   }
   await user.save();
   return res.json({ user });
@@ -197,10 +216,84 @@ async function updateSetting(req, res) {
   return res.json({ setting });
 }
 
+async function referralSummary(_req, res) {
+  const [pending, paid, rewardsByStatus, walletUsers, audits] = await Promise.all([
+    ReferralReward.find({ status: 'Pending' })
+      .populate('referrerId', 'name email phone walletBalance referralCode')
+      .populate('referredUserId', 'name email phone')
+      .populate('courseId', 'title')
+      .sort({ createdAt: -1 }),
+    ReferralReward.find({ status: 'Paid' })
+      .populate('referrerId', 'name email phone walletBalance referralCode')
+      .populate('referredUserId', 'name email phone')
+      .populate('courseId', 'title')
+      .sort({ paidAt: -1, createdAt: -1 }),
+    ReferralReward.aggregate([{ $group: { _id: '$status', count: { $sum: 1 }, amount: { $sum: '$rewardAmount' } } }]),
+    User.find({ role: 'student', $or: [{ walletBalance: { $gt: 0 } }, { totalReferrals: { $gt: 0 } }] })
+      .select('name email phone walletBalance totalReferrals referralCode')
+      .sort({ walletBalance: -1 }),
+    WalletAudit.find()
+      .populate('user', 'name email phone')
+      .populate('reward')
+      .sort({ createdAt: -1 })
+      .limit(100),
+  ]);
+  const stats = rewardsByStatus.reduce((acc, row) => {
+    acc[row._id.toLowerCase()] = { count: row.count, amount: row.amount };
+    return acc;
+  }, {});
+  return res.json({ pending, paid, stats, walletUsers, audits });
+}
+
+async function markReferralPaid(req, res) {
+  const { method, note } = req.body;
+  const reward = await ReferralReward.findById(req.params.id);
+  if (!reward) return res.status(404).json({ message: 'Referral reward not found' });
+  if (reward.status === 'Paid') return res.status(400).json({ message: 'Referral reward is already paid' });
+
+  const user = await User.findById(reward.referrerId);
+  if (!user) return res.status(404).json({ message: 'Referrer not found' });
+  const amount = reward.rewardAmount;
+  user.walletBalance = Math.max(0, Number(user.walletBalance || 0) - amount);
+  await user.save();
+
+  reward.status = 'Paid';
+  reward.paidAt = new Date();
+  await reward.save();
+
+  const payout = await ReferralPayout.create({
+    reward: reward._id,
+    user: user._id,
+    amount,
+    method: method || 'Manual Transfer',
+    note,
+    paidBy: req.user._id,
+  });
+  await WalletAudit.create([
+    {
+      user: user._id,
+      type: 'Wallet Deduction',
+      amount: -amount,
+      balanceAfter: user.walletBalance,
+      reward: reward._id,
+      note: `Referral payout marked paid by admin via ${payout.method}`,
+    },
+    {
+      user: user._id,
+      type: 'Referral Payout',
+      amount: -amount,
+      balanceAfter: user.walletBalance,
+      reward: reward._id,
+      note: note || 'Manual referral payout completed',
+    },
+  ]);
+  return res.json({ reward, payout, user });
+}
+
 async function deleteVideo(req, res) {
   const video = await Video.findByIdAndUpdate(req.params.id, { isActive: false }, { new: true });
   if (!video) return res.status(404).json({ message: 'Video not found' });
   return res.json({ video });
 }
 
-module.exports = { dashboard, courses, updateOffers, students, orders, updateAccess, banStudent, analytics, exportOrders, sendNotification, notifications, changePassword, updateSetting, deleteVideo };
+module.exports = { dashboard, courses, updateOffers, students, orders, updateAccess, banStudent, analytics, exportOrders, sendNotification, notifications, changePassword, updateSetting, referralSummary, markReferralPaid, deleteVideo };

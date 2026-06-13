@@ -15,10 +15,24 @@ const defaultCompany = {
   maintenanceMode: false,
 };
 
+const defaultAppDownloads = {
+  android: '',
+  ios: '',
+  website: '',
+};
+
 async function settings(_req, res) {
   const rows = await AppSetting.find();
   const data = Object.fromEntries(rows.map((row) => [row.key, row.value]));
-  return res.json({ settings: { company: { ...defaultCompany, ...(data.company || {}) }, bundlePrice: data.bundlePrice || 4999, maintenanceMode: data.maintenanceMode || false } });
+  return res.json({
+    settings: {
+      company: { ...defaultCompany, ...(data.company || {}) },
+      appDownloads: { ...defaultAppDownloads, ...(data.appDownloads || {}) },
+      referralRewardAmount: Number(data.referralRewardAmount ?? 1000),
+      bundlePrice: data.bundlePrice || 4999,
+      maintenanceMode: data.maintenanceMode || false,
+    },
+  });
 }
 
 async function updateSettings(req, res) {

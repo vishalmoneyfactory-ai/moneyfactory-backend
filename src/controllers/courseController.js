@@ -1,7 +1,7 @@
 const Course = require('../models/Course');
 const Video = require('../models/Video');
 const Review = require('../models/Review');
-const { ownsCourse } = require('../utils/access');
+const { courseAccessInfo, ownsCourse } = require('../utils/access');
 const { applyPricing } = require('../utils/pricing');
 
 function bunnyThumbnail(video) {
@@ -16,7 +16,9 @@ function serializeCourse(course, user) {
     const firstVideo = Array.isArray(json.videos) ? json.videos.find((video) => video?.bunnyVideoId) : null;
     json.thumbnail = bunnyThumbnail(firstVideo);
   }
-  json.isOwned = user ? ownsCourse(user, course) : false;
+  const access = user ? courseAccessInfo(user, course) : { isOwned: false, isExpired: false, purchaseDate: null, expiryDate: null, daysRemaining: null };
+  json.isOwned = access.isOwned;
+  json.access = access;
   return applyPricing(json);
 }
 
@@ -75,7 +77,7 @@ async function courseDetail(req, res) {
 async function courseVideos(req, res) {
   const course = await Course.findById(req.params.id);
   if (!course) return res.status(404).json({ message: 'Course not found' });
-  if (!ownsCourse(req.user, course)) return res.status(403).json({ message: 'Purchase required' });
+  if (!ownsCourse(req.user, course)) return res.status(403).json({ message: 'Course Expired - Repurchase Required.' });
   const videos = await Video.find({ course: course._id, isActive: true }).sort({ order: 1 });
   return res.json({ videos });
 }

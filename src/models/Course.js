@@ -15,6 +15,7 @@ const courseSchema = new mongoose.Schema({
   videos: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Video' }],
   totalDuration: { type: Number, default: 0 },
   totalVideos: { type: Number, default: 0 },
+  validityDays: { type: Number, default: 0, min: 0 },
   enrolledCount: { type: Number, default: 0 },
   isActive: { type: Boolean, default: true },
   order: { type: Number, default: 0, index: true },

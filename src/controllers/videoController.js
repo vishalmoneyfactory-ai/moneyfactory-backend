@@ -7,7 +7,7 @@ const { canWatchVideo } = require('../utils/access');
 async function streamUrl(req, res) {
   const video = await Video.findById(req.params.id).populate('course');
   if (!video || !video.isActive) return res.status(404).json({ message: 'Video not found' });
-  if (!canWatchVideo(req.user, video)) return res.status(403).json({ message: 'Purchase required' });
+  if (!canWatchVideo(req.user, video)) return res.status(403).json({ message: 'Course Expired - Repurchase Required.' });
   return res.json({ video: { id: video._id, title: video.title, duration: video.duration }, sources: generateSignedUrl(video.bunnyVideoId, video.bunnyLibraryId) });
 }
 

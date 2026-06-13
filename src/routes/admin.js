@@ -17,6 +17,8 @@ router.get('/analytics', admin.analytics);
 router.get('/export/orders', admin.exportOrders);
 router.put('/password', admin.changePassword);
 router.put('/settings/:key', admin.updateSetting);
+router.get('/referrals', admin.referralSummary);
+router.put('/referrals/:id/paid', admin.markReferralPaid);
 router.delete('/videos/:id', admin.deleteVideo);
 
 module.exports = router;

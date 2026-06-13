@@ -4,6 +4,7 @@ const User = require('../models/User');
 const Media = require('../models/Media');
 const { uploadImageToCloudinary } = require('../config/cloudinary');
 const generateToken = require('../utils/generateToken');
+const { referralHistory } = require('../utils/referrals');
 
 async function verifyFirebase(req, res) {
   const { idToken, name, phone } = req.body;
@@ -19,6 +20,14 @@ async function verifyFirebase(req, res) {
     return res.status(403).json({ message: 'Admin accounts can sign in only from the admin portal' });
   }
 
+  const set = {
+    name: name || decoded.name || email.split('@')[0],
+    isActive: true,
+    lastActiveAt: new Date(),
+    loginProvider: decoded.firebase?.sign_in_provider === 'google.com' ? 'google' : 'password',
+  };
+  if (phone !== undefined) set.phone = phone;
+
   const user = await User.findOneAndUpdate(
     { $or: [{ firebaseUid: decoded.uid }, { email }] },
     {
@@ -27,12 +36,7 @@ async function verifyFirebase(req, res) {
         email,
         role: 'student',
       },
-      $set: {
-        name: name || decoded.name || email.split('@')[0],
-        phone,
-        isActive: true,
-        lastActiveAt: new Date(),
-      },
+      $set: set,
     },
     { upsert: true, new: true }
   );
@@ -61,6 +65,7 @@ async function createFirstAdmin(req, res) {
     phone,
     passwordHash,
     role: 'admin',
+    loginProvider: 'admin',
     isActive: true,
   });
   const token = generateToken(user, process.env.ADMIN_JWT_EXPIRE || '24h');
@@ -88,8 +93,25 @@ async function adminLogin(req, res) {
 
 async function me(req, res) {
   const user = await User.findById(req.user._id)
-    .populate('purchasedCourses', 'title price thumbnail totalVideos totalDuration isFree isBundle');
-  return res.json({ user });
+    .populate('purchasedCourses', 'title price thumbnail totalVideos totalDuration isFree isBundle validityDays')
+    .populate('purchasedCourseDetails.course', 'title price thumbnail totalVideos totalDuration isFree isBundle validityDays');
+  const json = user.toObject();
+  const now = Date.now();
+  json.purchasedCourses = (json.purchasedCourses || []).map((course) => {
+    const matching = (json.purchasedCourseDetails || [])
+      .filter((entry) => (entry.course?._id || entry.course)?.toString() === course._id.toString())
+      .sort((a, b) => new Date(b.purchaseDate || 0) - new Date(a.purchaseDate || 0))[0];
+    const expiryTime = matching?.expiryDate ? new Date(matching.expiryDate).getTime() : null;
+    return {
+      ...course,
+      purchaseDate: matching?.purchaseDate || null,
+      expiryDate: matching?.expiryDate || null,
+      isExpired: Boolean(expiryTime && expiryTime < now),
+      daysRemaining: expiryTime ? Math.max(0, Math.ceil((expiryTime - now) / (24 * 60 * 60 * 1000))) : null,
+    };
+  });
+  json.referralHistory = await referralHistory(req.user._id);
+  return res.json({ user: json });
 }
 
 async function updateMe(req, res) {
