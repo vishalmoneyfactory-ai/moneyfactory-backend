@@ -90,6 +90,12 @@ async function unlockFreeCourse(req, res) {
   const alreadyOwned = ownsCourse(req.user, course);
   if (!alreadyOwned) {
     req.user.purchasedCourses.addToSet(course._id);
+    req.user.purchasedCourseDetails.push({
+      course: course._id,
+      purchaseDate: new Date(),
+      expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      isBundlePurchase: false,
+    });
     await req.user.save();
     course.enrolledCount += 1;
     await course.save();
@@ -99,12 +105,12 @@ async function unlockFreeCourse(req, res) {
 }
 
 async function createCourse(req, res) {
-  const course = await Course.create(req.body);
+  const course = await Course.create({ ...req.body, validityDays: 30 });
   return res.status(201).json({ course });
 }
 
 async function updateCourse(req, res) {
-  const course = await Course.findByIdAndUpdate(req.params.id, req.body, { new: true });
+  const course = await Course.findByIdAndUpdate(req.params.id, { ...req.body, validityDays: 30 }, { new: true });
   if (!course) return res.status(404).json({ message: 'Course not found' });
   return res.json({ course });
 }

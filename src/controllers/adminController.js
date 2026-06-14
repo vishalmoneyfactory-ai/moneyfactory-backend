@@ -127,7 +127,7 @@ async function updateAccess(req, res) {
       user.purchasedCourseDetails.push({
         course: courseId,
         purchaseDate,
-        expiryDate: expiryFor(course, purchaseDate),
+        expiryDate: expiryFor({ ...course.toObject(), validityDays: 30 }, purchaseDate),
         isBundlePurchase: false,
       });
     }

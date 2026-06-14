@@ -2,8 +2,7 @@ const Course = require('../models/Course');
 const User = require('../models/User');
 
 function expiryFor(course, purchaseDate = new Date()) {
-  const days = Number(course?.validityDays || 0);
-  if (!days) return null;
+  const days = Math.max(30, Number(course?.validityDays || 30));
   return new Date(purchaseDate.getTime() + days * 24 * 60 * 60 * 1000);
 }
 

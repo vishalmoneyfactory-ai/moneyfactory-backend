@@ -1,3 +1,4 @@
+const admin = require('../config/firebase');
 const AppSetting = require('../models/AppSetting');
 const Course = require('../models/Course');
 const Order = require('../models/Order');
@@ -77,6 +78,24 @@ async function creditReferralReward(order) {
       note: `Referral code ${order.referralCode} used by ${referredUser.email}`,
     },
   ]);
+  if (referrer?.fcmToken && (admin.apps || []).length) {
+    try {
+      await admin.messaging().send({
+        token: referrer.fcmToken,
+        notification: {
+          title: 'Money Factory Wallet Credited',
+          body: `₹${amount} has been credited to your Money Factory Wallet. The amount will be transferred to your bank account shortly.`,
+        },
+        data: {
+          type: 'referral_reward',
+          amount: String(amount),
+          rewardId: reward._id.toString(),
+        },
+      });
+    } catch (err) {
+      console.warn('Referral reward notification failed', err.message);
+    }
+  }
   return reward;
 }
 

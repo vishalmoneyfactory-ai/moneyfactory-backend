@@ -1,3 +1,11 @@
+function effectiveExpiry(entry, courseOrId) {
+  if (!entry) return null;
+  if (entry.expiryDate) return entry.expiryDate;
+  if (!entry.purchaseDate) return null;
+  const days = Math.max(30, Number(courseOrId?.validityDays || 30));
+  return new Date(new Date(entry.purchaseDate).getTime() + days * 24 * 60 * 60 * 1000);
+}
+
 function activeCourseAccess(user, courseOrId) {
   const courseId = (courseOrId?._id || courseOrId)?.toString();
   if (!courseId) return null;
@@ -5,7 +13,10 @@ function activeCourseAccess(user, courseOrId) {
   const details = user?.purchasedCourseDetails || [];
   const active = details
     .filter((entry) => (entry.course?._id || entry.course)?.toString() === courseId)
-    .filter((entry) => !entry.expiryDate || new Date(entry.expiryDate).getTime() >= now)
+    .filter((entry) => {
+      const expiryDate = effectiveExpiry(entry, courseOrId);
+      return !expiryDate || new Date(expiryDate).getTime() >= now;
+    })
     .sort((a, b) => new Date(b.purchaseDate || 0) - new Date(a.purchaseDate || 0))[0];
   if (active) return active;
   if (details.length) return null;
@@ -24,7 +35,7 @@ function courseAccessInfo(user, courseOrId) {
     .sort((a, b) => new Date(b.purchaseDate || 0) - new Date(a.purchaseDate || 0));
   const active = activeCourseAccess(user, courseOrId);
   const latest = active || rows[0] || null;
-  const expiryDate = latest?.expiryDate || null;
+  const expiryDate = effectiveExpiry(latest, courseOrId);
   const expired = Boolean(latest && expiryDate && new Date(expiryDate).getTime() < Date.now());
   const daysRemaining = active?.expiryDate
     ? Math.max(0, Math.ceil((new Date(active.expiryDate).getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
