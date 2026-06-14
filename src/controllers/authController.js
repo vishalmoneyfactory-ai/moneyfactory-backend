@@ -101,13 +101,14 @@ async function me(req, res) {
     const matching = (json.purchasedCourseDetails || [])
       .filter((entry) => (entry.course?._id || entry.course)?.toString() === course._id.toString())
       .sort((a, b) => new Date(b.purchaseDate || 0) - new Date(a.purchaseDate || 0))[0];
-    const expiryDate = matching?.expiryDate || (matching?.purchaseDate
-      ? new Date(new Date(matching.purchaseDate).getTime() + 30 * 24 * 60 * 60 * 1000)
+    const purchaseDate = matching?.purchaseDate || user.createdAt;
+    const expiryDate = matching?.expiryDate || (purchaseDate
+      ? new Date(new Date(purchaseDate).getTime() + 30 * 24 * 60 * 60 * 1000)
       : null);
     const expiryTime = expiryDate ? new Date(expiryDate).getTime() : null;
     return {
       ...course,
-      purchaseDate: matching?.purchaseDate || null,
+      purchaseDate: purchaseDate,
       expiryDate,
       isExpired: Boolean(expiryTime && expiryTime < now),
       daysRemaining: expiryTime ? Math.max(0, Math.ceil((expiryTime - now) / (24 * 60 * 60 * 1000))) : null,

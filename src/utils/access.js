@@ -20,9 +20,9 @@ function activeCourseAccess(user, courseOrId) {
     .sort((a, b) => new Date(b.purchaseDate || 0) - new Date(a.purchaseDate || 0))[0];
   if (active) return active;
   if (details.length) return null;
-  if (user?.hasBundle) return { purchaseDate: null, expiryDate: null, legacy: true };
+  if (user?.hasBundle) return { purchaseDate: user.createdAt, expiryDate: null, legacy: true };
   if (user?.purchasedCourses?.some((id) => id.toString() === courseId)) {
-    return { purchaseDate: null, expiryDate: null, legacy: true };
+    return { purchaseDate: user.createdAt, expiryDate: null, legacy: true };
   }
   return null;
 }
