@@ -37,8 +37,8 @@ function courseAccessInfo(user, courseOrId) {
   const latest = active || rows[0] || null;
   const expiryDate = effectiveExpiry(latest, courseOrId);
   const expired = Boolean(latest && expiryDate && new Date(expiryDate).getTime() < Date.now());
-  const daysRemaining = active?.expiryDate
-    ? Math.max(0, Math.ceil((new Date(active.expiryDate).getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
+  const daysRemaining = (active && expiryDate)
+    ? Math.max(0, Math.ceil((new Date(expiryDate).getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
     : null;
   return {
     isOwned: Boolean(active),
