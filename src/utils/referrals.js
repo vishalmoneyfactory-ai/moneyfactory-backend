@@ -6,10 +6,12 @@ const ReferralReward = require('../models/ReferralReward');
 const User = require('../models/User');
 const WalletAudit = require('../models/WalletAudit');
 
-async function referralRewardAmount() {
-  const setting = await AppSetting.findOne({ key: 'referralRewardAmount' });
-  const amount = Number(setting?.value ?? 1000);
-  return Number.isFinite(amount) && amount >= 0 ? amount : 1000;
+async function referralRewardAmount(isBundle = false) {
+  const key = isBundle ? 'referralBundleRewardAmount' : 'referralCourseRewardAmount';
+  const fallback = isBundle ? 1000 : 300;
+  const setting = await AppSetting.findOne({ key });
+  const amount = Number(setting?.value ?? fallback);
+  return Number.isFinite(amount) && amount >= 0 ? amount : fallback;
 }
 
 async function validateReferralCode(code, userId) {
@@ -44,7 +46,7 @@ async function creditReferralReward(order) {
     : order.course;
   if (!courseId) return null;
 
-  const amount = await referralRewardAmount();
+  const amount = await referralRewardAmount(order.isBundle);
   const reward = await ReferralReward.create({
     referrerId: validation.referrer._id,
     referredUserId: referredUser._id,
@@ -84,7 +86,7 @@ async function creditReferralReward(order) {
         token: referrer.fcmToken,
         notification: {
           title: 'Money Factory Wallet Credited',
-          body: `₹${amount} has been credited to your Money Factory Wallet. The amount will be transferred to your bank account shortly.`,
+          body: `Rs ${amount} has been credited to your Money Factory Wallet. The amount will be transferred to your bank account shortly.`,
         },
         data: {
           type: 'referral_reward',

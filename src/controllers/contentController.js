@@ -3,6 +3,7 @@ const Banner = require('../models/Banner');
 const LegalPage = require('../models/LegalPage');
 const Media = require('../models/Media');
 const { uploadImageToCloudinary } = require('../config/cloudinary');
+const generateSignedUrl = require('../utils/bunnySignedUrl');
 
 const defaultCompany = {
   description: 'Money Factory is a premium trading education platform focused on practical market structure, liquidity, and indicator-led execution.',
@@ -21,6 +22,11 @@ const defaultAppDownloads = {
   website: '',
 };
 
+const defaultEarnVideo = {
+  bunnyVideoId: '',
+  bunnyLibraryId: '',
+};
+
 async function settings(_req, res) {
   const rows = await AppSetting.find();
   const data = Object.fromEntries(rows.map((row) => [row.key, row.value]));
@@ -28,10 +34,28 @@ async function settings(_req, res) {
     settings: {
       company: { ...defaultCompany, ...(data.company || {}) },
       appDownloads: { ...defaultAppDownloads, ...(data.appDownloads || {}) },
-      referralRewardAmount: Number(data.referralRewardAmount ?? 1000),
+      earnVideo: { ...defaultEarnVideo, ...(data.earnVideo || {}) },
+      referralCourseRewardAmount: Number(data.referralCourseRewardAmount ?? 300),
+      referralBundleRewardAmount: Number(data.referralBundleRewardAmount ?? 1000),
       bundlePrice: data.bundlePrice || 4999,
       maintenanceMode: data.maintenanceMode || false,
     },
+  });
+}
+
+async function earnVideo(_req, res) {
+  const setting = await AppSetting.findOne({ key: 'earnVideo' });
+  const video = { ...defaultEarnVideo, ...(setting?.value || {}) };
+  if (!video.bunnyVideoId || !video.bunnyLibraryId) {
+    return res.status(404).json({ message: 'Earn explainer video is not configured' });
+  }
+  return res.json({
+    video: {
+      bunnyVideoId: video.bunnyVideoId,
+      bunnyLibraryId: video.bunnyLibraryId,
+      title: 'Promote & Earn Program',
+    },
+    sources: generateSignedUrl(video.bunnyVideoId, video.bunnyLibraryId),
   });
 }
 
@@ -99,4 +123,4 @@ async function getMedia(req, res) {
   return res.send(media.data);
 }
 
-module.exports = { settings, updateSettings, listBanners, createBanner, updateBanner, deleteBanner, listLegal, updateLegal, uploadMedia, getMedia };
+module.exports = { settings, updateSettings, earnVideo, listBanners, createBanner, updateBanner, deleteBanner, listLegal, updateLegal, uploadMedia, getMedia };
