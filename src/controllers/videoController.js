@@ -100,7 +100,8 @@ async function createVideoEntry(req, res) {
       apiKey: process.env.BUNNY_STREAM_API_KEY
     });
   } catch (err) {
-    return res.status(500).json({ message: err.message });
+    const errorMsg = err.response?.data?.Message || err.message;
+    return res.status(500).json({ message: `Bunny API Error: ${errorMsg}` });
   }
 }
 
@@ -134,7 +135,8 @@ async function importFromBunny(req, res) {
     const unmapped = resp.data.items.filter(v => !existingSet.has(v.guid));
     return res.json({ videos: unmapped });
   } catch (err) {
-    return res.status(500).json({ message: err.message });
+    const errorMsg = err.response?.data?.Message || err.message;
+    return res.status(500).json({ message: `Bunny API Error: ${errorMsg}` });
   }
 }
 
