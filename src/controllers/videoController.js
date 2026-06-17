@@ -92,12 +92,17 @@ async function createVideoEntry(req, res) {
     course.videos.addToSet(video._id);
     await course.save();
 
+    const expirationTime = Math.floor(Date.now() / 1000) + 3600 * 24;
+    const crypto = require('crypto');
+    const signature = crypto.createHash('sha256').update(libraryId + process.env.BUNNY_STREAM_API_KEY + expirationTime + bunnyVideoId).digest('hex');
+
     return res.status(201).json({ 
       video,
-      tusEndpoint: `https://video.bunnycdn.com/tusapi`,
+      tusEndpoint: `https://video.bunnycdn.com/tusupload`,
       libraryId,
       bunnyVideoId,
-      apiKey: process.env.BUNNY_STREAM_API_KEY
+      signature,
+      expirationTime
     });
   } catch (err) {
     const errorMsg = err.response?.data?.Message || err.message;
