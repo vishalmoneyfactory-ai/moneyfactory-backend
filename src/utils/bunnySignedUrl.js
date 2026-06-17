@@ -17,6 +17,7 @@ function generateSignedUrl(videoId, libraryId) {
   const qs = `?token=${token}&expires=${expiryTime}&token_path=${encodeURIComponent(path)}`;
 
   return {
+    urlAuto: `https://${hostname}/${videoId}/playlist.m3u8${qs}`,
     url480: `https://${hostname}/${videoId}/480p/video.m3u8${qs}`,
     url720: `https://${hostname}/${videoId}/720p/video.m3u8${qs}`,
     url1080: `https://${hostname}/${videoId}/1080p/video.m3u8${qs}`,
