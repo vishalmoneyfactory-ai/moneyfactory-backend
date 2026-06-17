@@ -2,7 +2,7 @@ const axios = require('axios');
 
 const bunnyClient = axios.create({
   baseURL: 'https://video.bunnycdn.com/library',
-  timeout: 120000,
+  timeout: 600000,
 });
 
 bunnyClient.interceptors.request.use((config) => {

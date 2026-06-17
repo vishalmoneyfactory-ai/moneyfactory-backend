@@ -19,6 +19,7 @@ const courseSchema = new mongoose.Schema({
   enrolledCount: { type: Number, default: 0 },
   isActive: { type: Boolean, default: true },
   order: { type: Number, default: 0, index: true },
+  bunnyCollectionId: { type: String, default: '' },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Course', courseSchema);
