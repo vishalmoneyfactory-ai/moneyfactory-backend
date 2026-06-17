@@ -111,19 +111,28 @@ async function createVideoEntry(req, res) {
 }
 
 async function markVideoActive(req, res) {
-  const video = await Video.findById(req.params.id);
-  if (!video) return res.status(404).json({ message: 'Video not found' });
-  video.isActive = true;
-  await video.save();
-  
-  const course = await Course.findById(video.course);
-  if (course) {
-    course.totalVideos = await Video.countDocuments({ course: course._id, isActive: true });
-    course.totalDuration = await Video.aggregate([{ $match: { course: course._id, isActive: true } }, { $group: { _id: null, total: { $sum: '$duration' } } }]).then((r) => r[0]?.total || 0);
-    await course.save();
+  try {
+    const video = await Video.findById(req.params.id);
+    if (!video) return res.status(404).json({ message: 'Video not found' });
+    
+    video.isActive = true;
+    try {
+      const resp = await bunnyClient.get(`/${process.env.BUNNY_LIBRARY_ID}/videos/${video.bunnyVideoId}`);
+      if (resp.data && resp.data.length) video.duration = resp.data.length;
+    } catch(e) { console.error('Failed to get duration', e.message); }
+    await video.save();
+
+    const totalDuration = await Video.aggregate([
+      { $match: { course: new mongoose.Types.ObjectId(video.course), isActive: true } },
+      { $group: { _id: null, total: { $sum: '$duration' } } }
+    ]).then(r => r[0]?.total || 0);
+
+    await Course.findByIdAndUpdate(video.course, { totalDuration, $addToSet: { videos: video._id } });
+    
+    res.json(video);
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
   }
-  
-  return res.json({ video });
 }
 
 async function importFromBunny(req, res) {

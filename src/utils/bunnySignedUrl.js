@@ -19,6 +19,7 @@ function generateSignedUrl(videoId, libraryId) {
   return {
     url480: `https://${hostname}/${videoId}/480p/video.m3u8${qs}`,
     url720: `https://${hostname}/${videoId}/720p/video.m3u8${qs}`,
+    url1080: `https://${hostname}/${videoId}/1080p/video.m3u8${qs}`,
     expiresAt: expiryTime,
   };
 }
