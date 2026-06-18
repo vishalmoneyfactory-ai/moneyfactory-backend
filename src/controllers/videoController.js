@@ -119,7 +119,7 @@ async function markVideoActive(req, res) {
     video.isActive = true;
     try {
       const resp = await bunnyClient.get(`/${process.env.BUNNY_LIBRARY_ID}/videos/${video.bunnyVideoId}`);
-      if (resp.data && resp.data.length) video.duration = resp.data.length;
+      if (resp.data && resp.data.length > 0) video.duration = resp.data.length;
     } catch(e) { console.error('Failed to get duration', e.message); }
     await video.save();
 
