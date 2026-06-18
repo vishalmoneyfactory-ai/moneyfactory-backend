@@ -3,6 +3,7 @@ const Course = require('../models/Course');
 const Video = require('../models/Video');
 const generateSignedUrl = require('../utils/bunnySignedUrl');
 const { canWatchVideo } = require('../utils/access');
+const mongoose = require('mongoose');
 
 async function streamUrl(req, res) {
   const video = await Video.findById(req.params.id).populate('course');
