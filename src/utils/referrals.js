@@ -6,12 +6,15 @@ const ReferralReward = require('../models/ReferralReward');
 const User = require('../models/User');
 const WalletAudit = require('../models/WalletAudit');
 
-async function referralRewardAmount(isBundle = false) {
-  const key = isBundle ? 'referralBundleRewardAmount' : 'referralCourseRewardAmount';
-  const fallback = isBundle ? 1000 : 300;
-  const setting = await AppSetting.findOne({ key });
-  const amount = Number(setting?.value ?? fallback);
-  return Number.isFinite(amount) && amount >= 0 ? amount : fallback;
+async function referralRewardAmount(isBundle = false, courseId = null) {
+  if (isBundle) return 2000;
+  if (courseId) {
+    const course = await Course.findById(courseId);
+    if (course && course.title.toLowerCase().includes('money factory indicator')) {
+      return 1000;
+    }
+  }
+  return 300;
 }
 
 async function validateReferralCode(code, userId) {
@@ -46,7 +49,7 @@ async function creditReferralReward(order) {
     : order.course;
   if (!courseId) return null;
 
-  const amount = await referralRewardAmount(order.isBundle);
+  const amount = await referralRewardAmount(order.isBundle, order.course);
   const reward = await ReferralReward.create({
     referrerId: validation.referrer._id,
     referredUserId: referredUser._id,
