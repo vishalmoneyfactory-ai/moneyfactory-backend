@@ -77,7 +77,7 @@ async function updateOffers(req, res) {
   };
   const filter = scope === 'all'
     ? { isBundle: false, isFree: { $ne: true } }
-    : { _id: courseId, isBundle: false, isFree: { $ne: true } };
+    : { _id: courseId, isFree: { $ne: true } };
 
   if (scope !== 'all' && !courseId) return res.status(400).json({ message: 'Course is required for a specific offer' });
   const result = await Course.updateMany(filter, update);
